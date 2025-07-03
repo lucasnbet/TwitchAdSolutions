@@ -1,7 +1,6 @@
-twitch-videoad.js text/javascript
 (function() {
     if ( /(^|\.)twitch\.tv$/.test(document.location.hostname) === false ) { return; }
-    var ourTwitchAdSolutionsVersion = 7;// Only bump this when there's a breaking change to Twitch, the script, or there's a conflict with an unmaintained extension which uses this script
+    var ourTwitchAdSolutionsVersion = 7;
     if (typeof unsafeWindow === 'undefined') {
         unsafeWindow = window;
     }
@@ -12,38 +11,28 @@ twitch-videoad.js text/javascript
     }
     unsafeWindow.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
     function declareOptions(scope) {
-        // Options / globals
         scope.OPT_MODE_STRIP_AD_SEGMENTS = true;
         scope.OPT_MODE_NOTIFY_ADS_WATCHED = true;
         scope.OPT_MODE_NOTIFY_ADS_WATCHED_MIN_REQUESTS = false;
         scope.OPT_BACKUP_PLAYER_TYPE = 'autoplay';
-        scope.OPT_BACKUP_PLATFORM = 'ios';
+        scope.OPT_BACKUP_PLATFORM = 'web'; // Cambiado a 'web' para mejor calidad
         scope.OPT_REGULAR_PLAYER_TYPE = 'site';
         scope.OPT_ACCESS_TOKEN_PLAYER_TYPE = null;
         scope.OPT_SHOW_AD_BANNER = true;
         scope.AD_SIGNIFIER = 'stitched-ad';
         scope.LIVE_SIGNIFIER = ',live';
         scope.CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
-        // These are only really for Worker scope...
         scope.StreamInfos = [];
         scope.StreamInfosByUrl = [];
         scope.CurrentChannelNameFromM3U8 = null;
-        // Need this in both scopes. Window scope needs to update this to worker scope.
         scope.gql_device_id = null;
         scope.ClientIntegrityHeader = null;
         scope.AuthorizationHeader = null;
     }
     var twitchWorkers = [];
-    var workerStringConflicts = [
-        'twitch',
-        'isVariantA'// TwitchNoSub
-    ];
+    var workerStringConflicts = ['twitch', 'isVariantA'];
     var workerStringAllow = [];
-    var workerStringReinsert = [
-        'isVariantA',// TwitchNoSub (prior to (0.9))
-        'besuper/',// TwitchNoSub (0.9)
-        '${patch_url}'// TwitchNoSub (0.9.1)
-    ];
+    var workerStringReinsert = ['isVariantA', 'besuper/', '${patch_url}'];
     function getCleanWorker(worker) {
         var root = null;
         var parent = null;
@@ -71,7 +60,6 @@ twitch-videoad.js text/javascript
             var workerString = proto.toString();
             if (workerStringReinsert.some((x) => workerString.includes(x))) {
                 result.push(proto);
-            } else {
             }
             proto = Object.getPrototypeOf(proto);
         }
@@ -132,7 +120,6 @@ twitch-videoad.js text/javascript
                                 if (responseData.error) {
                                     reject(new Error(responseData.error));
                                 } else {
-                                    // Create a Response object from the response data
                                     const response = new Response(responseData.body, {
                                         status: responseData.status,
                                         statusText: responseData.statusText,
@@ -145,11 +132,10 @@ twitch-videoad.js text/javascript
                     });
                     hookWorkerFetch();
                     eval(workerString);
-                `
+                `;
                 super(URL.createObjectURL(new Blob([newBlobStr])), options);
                 twitchWorkers.push(this);
                 this.addEventListener('message', (e) => {
-                    // NOTE: Removed adDiv caching as '.video-player' can change between streams?
                     if (e.data.key == 'UboShowAdBanner') {
                         var adDiv = getAdDiv();
                         if (adDiv != null) {
@@ -163,9 +149,8 @@ twitch-videoad.js text/javascript
                         if (adDiv != null) {
                             adDiv.style.display = 'none';
                         }
-                    } else if (e.data.key == 'UboChannelNameM3U8Changed') {
-                        //console.log('M3U8 channel name changed to ' + e.data.value);
-                    } else if (e.data.key == 'UboReloadPlayer') {
+                    } else if (e.data.key == 'UboChannelNameM3U8Changed') {}
+                    else if (e.data.key == 'UboReloadPlayer') {
                         reloadTwitchPlayer();
                     } else if (e.data.key == 'UboPauseResumePlayer') {
                         reloadTwitchPlayer(false, true);
@@ -200,7 +185,7 @@ twitch-videoad.js text/javascript
                     return adDiv;
                 }
             }
-        }
+        };
         var workerInstance = reinsertWorkers(newWorker, reinsert);
         Object.defineProperty(unsafeWindow, 'Worker', {
             get: function() {
@@ -235,7 +220,6 @@ twitch-videoad.js text/javascript
         var streamInfo = StreamInfosByUrl[url];
         if (streamInfo == null) {
             console.log('Unknown stream url ' + url);
-            //postMessage({key:'UboHideAdBanner'});
             return textStr;
         }
         if (!OPT_MODE_STRIP_AD_SEGMENTS) {
@@ -255,7 +239,7 @@ twitch-videoad.js text/javascript
                     var streamM3u8 = await streamM3u8Response.text();
                     if (streamM3u8 != null) {
                         if (!streamM3u8.includes(AD_SIGNIFIER)) {
-                            console.log('No more ads on main stream. Triggering player reload to go back to main stream...');
+                            console.log('No more ads on main stream. Triggering player reload...');
                             streamInfo.UseBackupStream = false;
                             postMessage({key:'UboHideAdBanner'});
                             postMessage({key:'UboReloadPlayer'});
@@ -265,8 +249,6 @@ twitch-videoad.js text/javascript
                                 var line = lines[i];
                                 if (line.startsWith('#EXTINF') && lines.length > i + 1) {
                                     if (!line.includes(LIVE_SIGNIFIER) && !streamInfo.RequestedAds.has(lines[i + 1])) {
-                                        // Only request one .ts file per .m3u8 request to avoid making too many requests
-                                        //console.log('Fetch ad .ts file');
                                         streamInfo.RequestedAds.add(lines[i + 1]);
                                         fetch(lines[i + 1]).then((response)=>{response.blob()});
                                         break;
@@ -321,19 +303,13 @@ twitch-videoad.js text/javascript
                 else if (url.includes('/api/channel/hls/') && !url.includes('picture-by-picture')) {
                     var channelName = (new URL(url)).pathname.match(/([^\/]+)(?=\.\w+$)/)[0];
                     if (CurrentChannelNameFromM3U8 != channelName) {
-                        postMessage({
-                            key: 'UboChannelNameM3U8Changed',
-                            value: channelName
-                        });
+                        postMessage({key: 'UboChannelNameM3U8Changed', value: channelName});
                     }
                     CurrentChannelNameFromM3U8 = channelName;
                     if (OPT_MODE_STRIP_AD_SEGMENTS) {
                         return new Promise(async function(resolve, reject) {
-                            // - First m3u8 request is the m3u8 with the video encodings (360p,480p,720p,etc).
-                            // - Second m3u8 request is the m3u8 for the given encoding obtained in the first request. At this point we will know if there's ads.
                             var streamInfo = StreamInfos[channelName];
                             if (streamInfo != null && streamInfo.Encodings != null && (await realFetch(streamInfo.Encodings.match(/^https:.*\.m3u8$/m)[0])).status !== 200) {
-                                // The cached encodings are dead (the stream probably restarted)
                                 streamInfo = null;
                             }
                             if (streamInfo == null || streamInfo.Encodings == null || streamInfo.BackupEncodings == null) {
@@ -351,7 +327,7 @@ twitch-videoad.js text/javascript
                                         var accessTokenResponse = await getAccessToken(channelName, OPT_BACKUP_PLAYER_TYPE, OPT_BACKUP_PLATFORM);
                                         if (accessTokenResponse != null && accessTokenResponse.status === 200) {
                                             var accessToken = await accessTokenResponse.json();
-                                            var urlInfo = new URL('https://usher.ttvnw.net/api/channel/hls/' + channelName + '.m3u8' + (new URL(url)).search);
+                                            var urlInfo = new URL('https://usher.ttvnw.net/api/channel/hls/ ' + channelName + '.m3u8' + (new URL(url)).search);
                                             urlInfo.searchParams.set('sig', accessToken.data.streamPlaybackAccessToken.signature);
                                             urlInfo.searchParams.set('token', accessToken.data.streamPlaybackAccessToken.value);
                                             encodingsUrl = urlInfo.href;
@@ -378,26 +354,22 @@ twitch-videoad.js text/javascript
                                             }
                                         } else {
                                             var lowResLines = encodingsM3u8.replace('\r', '').split('\n');
-                                            var lowResBestUrl = null;
-                                            for (var j = 0; j < lowResLines.length; j++) {
+                                            let backupResolutions = [];
+                                            for (let j = 0; j < lowResLines.length; j++) {
                                                 if (lowResLines[j].startsWith('#EXT-X-STREAM-INF')) {
                                                     var res = parseAttributes(lowResLines[j])['RESOLUTION'];
                                                     if (res && lowResLines[j + 1].endsWith('.m3u8')) {
-                                                        // Assumes resolutions are correctly ordered
-                                                        lowResBestUrl = lowResLines[j + 1];
-                                                        break;
+                                                        backupResolutions.push(lowResLines[j + 1]);
                                                     }
                                                 }
                                             }
-                                            if (lowResBestUrl != null && streamInfo.Encodings != null) {
-                                                var normalEncodingsM3u8 = streamInfo.Encodings;
-                                                var normalLines = normalEncodingsM3u8.replace('\r', '').split('\n');
-                                                for (var j = 0; j < normalLines.length - 1; j++) {
+                                            if (backupResolutions.length > 0 && streamInfo.Encodings != null) {
+                                                var normalLines = streamInfo.Encodings.replace('\r', '').split('\n');
+                                                for (let j = 0; j < normalLines.length - 1; j++) {
                                                     if (normalLines[j].startsWith('#EXT-X-STREAM-INF')) {
-                                                        var res = parseAttributes(normalLines[j])['RESOLUTION'];
-                                                        if (res) {
-                                                            lowResBestUrl += ' ';// The stream doesn't load unless each url line is unique
-                                                            normalLines[j + 1] = lowResBestUrl;
+                                                        let res = parseAttributes(normalLines[j])['RESOLUTION'];
+                                                        if (res && backupResolutions.length > 0) {
+                                                            normalLines[j + 1] = backupResolutions.shift();
                                                         }
                                                     }
                                                 }
@@ -483,7 +455,7 @@ twitch-videoad.js text/javascript
             const requestId = Math.random().toString(36).substring(2, 15);
             const fetchRequest = {
                 id: requestId,
-                url: 'https://gql.twitch.tv/gql',
+                url: 'https://gql.twitch.tv/gql ',
                 options: {
                     method: 'POST',
                     body: JSON.stringify(body),
@@ -514,11 +486,12 @@ twitch-videoad.js text/javascript
     }
     async function tryNotifyAdsWatchedM3U8(streamM3u8) {
         try {
-            //console.log(streamM3u8);
             if (!streamM3u8 || !streamM3u8.includes(AD_SIGNIFIER)) {
                 return 1;
             }
-            var matches = streamM3u8.match(/#EXT-X-DATERANGE:(ID="stitched-ad-[^\n]+)\n/);
+            var matches = streamM3u8.match(/#EXT-X-DATERANGE:(ID="stitched-ad-[^
+]+)
+/);
             if (matches.length > 1) {
                 const attrString = matches[1];
                 const attr = parseAttributes(attrString);
@@ -539,7 +512,6 @@ twitch-videoad.js text/javascript
                 };
                 for (let podPosition = 0; podPosition < podLength; podPosition++) {
                     if (OPT_MODE_NOTIFY_ADS_WATCHED_MIN_REQUESTS) {
-                        // This is all that's actually required at the moment
                         await gqlRequest(makeGraphQlPacket('video_ad_pod_complete', radToken, baseData));
                     } else {
                         const extendedData = {
@@ -588,10 +560,10 @@ twitch-videoad.js text/javascript
             });
         });
     }
-    // Taken from https://github.com/dimdenGD/YeahTwitter/blob/9e0520f5abe029f57929795d8de0d2e5d3751cf3/us.js#L48
     function parseHeaders(headersString) {
         const headers = new Headers();
-        const lines = headersString.trim().split(/[\r\n]+/);
+        const lines = headersString.trim().split(/[\r
+]+/);
         lines.forEach(line => {
             const parts = line.split(':');
             const header = parts.shift();
@@ -628,8 +600,8 @@ twitch-videoad.js text/javascript
             }
             if (typeof GM !== 'undefined' && typeof GM.xmlHttpRequest !== 'undefined') {
                 fetchRequest.options.headers['Sec-Ch-Ua'] = '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"';
-                fetchRequest.options.headers['Referer'] = 'https://www.twitch.tv/';
-                fetchRequest.options.headers['Origin'] = 'https://www.twitch.tv/';
+                fetchRequest.options.headers['Referer'] = 'https://www.twitch.tv/ ';
+                fetchRequest.options.headers['Origin'] = 'https://www.twitch.tv/ ';
                 fetchRequest.options.headers['Host'] = 'gql.twitch.tv';
                 const response = await makeGmXmlHttpRequest(fetchRequest);
                 const responseBody = response.responseText;
@@ -697,9 +669,6 @@ twitch-videoad.js text/javascript
         };
     }
     function reloadTwitchPlayer(isSeek, isPausePlay) {
-        // Taken from ttv-tools / ffz
-        // https://github.com/Nerixyz/ttv-tools/blob/master/src/context/twitch-player.ts
-        // https://github.com/FrankerFaceZ/FrankerFaceZ/blob/master/src/sites/twitch-twilight/modules/player.jsx
         function findReactNode(root, constraint) {
             if (root.stateNode && constraint(root.stateNode)) {
                 return root.stateNode;
@@ -748,7 +717,6 @@ twitch-videoad.js text/javascript
             return;
         }
         if (isSeek) {
-            console.log('Force seek to reset player (hopefully fixing any audio desync) pos:' + player.getPosition() + ' range:' + JSON.stringify(player.getBuffered()));
             var pos = player.getPosition();
             player.seekTo(0);
             player.seekTo(pos);
@@ -780,8 +748,6 @@ twitch-videoad.js text/javascript
         }, 3000);
     }
     function onContentLoaded() {
-        // This stops Twitch from pausing the player when in another tab and an ad shows.
-        // Taken from https://github.com/saucettv/VideoAdBlockForTwitch/blob/cefce9d2b565769c77e3666ac8234c3acfe20d83/chrome/content.js#L30
         try {
             Object.defineProperty(document, 'visibilityState', {
                 get() {
@@ -820,13 +786,12 @@ twitch-videoad.js text/javascript
                 });
             }
         }catch{}
-        // Hooks for preserving volume / resolution
         var keysToCache = [
             'video-quality',
             'video-muted',
             'volume',
-            'lowLatencyModeEnabled',// Low Latency
-            'persistenceEnabled',// Mini Player
+            'lowLatencyModeEnabled',
+            'persistenceEnabled',
         ];
         var cachedValues = new Map();
         for (var i = 0; i < keysToCache.length; i++) {
